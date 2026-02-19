@@ -3,6 +3,8 @@
 const TOKEN = process.env.META_ACCESS_TOKEN
 const DEFAULT_ACCOUNT_ID = process.env.META_AD_ACCOUNT_ID
 const BASE_URL = 'https://graph.facebook.com/v18.0'
+const READ_ONLY = process.env.OPENCLAW_ADS_READ_ONLY !== 'false'
+const DEFAULT_INSIGHT_FIELDS = 'impressions,reach,frequency,clicks,unique_clicks,spend,actions,action_values,cpc,cpm,ctr,cpp'
 
 if (!TOKEN) {
   console.error(JSON.stringify({ error: 'META_ACCESS_TOKEN environment variable required' }))
@@ -58,6 +60,15 @@ function getAccountId() {
   return args['account-id'] || DEFAULT_ACCOUNT_ID
 }
 
+function denyWrite(operation) {
+  if (READ_ONLY && !args['allow-write']) {
+    return {
+      error: `${operation} blocked: OpenClaw secure mode enforces read-only Meta Ads access. Pass --allow-write or set OPENCLAW_ADS_READ_ONLY=false only if you understand the risks.`,
+    }
+  }
+  return null
+}
+
 async function main() {
   let result
 
@@ -83,13 +94,16 @@ async function main() {
         case 'insights': {
           if (!args.id) { result = { error: '--id required' }; break }
           const datePreset = args['date-preset'] || 'last_30d'
-          result = await api('GET', `/${args.id}/insights?fields=impressions,clicks,spend,actions,cost_per_action_type&date_preset=${datePreset}`)
+          const fields = encodeURIComponent(args.fields || DEFAULT_INSIGHT_FIELDS)
+          result = await api('GET', `/${args.id}/insights?fields=${fields}&date_preset=${datePreset}`)
           break
         }
         case 'create': {
           const accountId = getAccountId()
           if (!accountId) { result = { error: '--account-id required (or set META_AD_ACCOUNT_ID)' }; break }
           if (!args.name || !args.objective) { result = { error: '--name and --objective required' }; break }
+          const blocked = denyWrite('Creating campaigns')
+          if (blocked) { result = blocked; break }
           const body = {
             name: args.name,
             objective: args.objective,
@@ -101,6 +115,8 @@ async function main() {
         }
         case 'update': {
           if (!args.id || !args.status) { result = { error: '--id and --status required' }; break }
+          const blocked = denyWrite('Updating campaigns')
+          if (blocked) { result = blocked; break }
           result = await api('POST', `/${args.id}`, { status: args.status })
           break
         }
@@ -126,11 +142,35 @@ async function main() {
       switch (sub) {
         case 'list': {
           if (!args['adset-id']) { result = { error: '--adset-id required' }; break }
-          result = await api('GET', `/${args['adset-id']}/ads?fields=id,name,status,creative`)
+          const fields = args.fields || 'id,name,status,creative{effective_object_story_id,object_story_spec,thumbnail_url,image_url,actor_id,title,body}'
+          const params = new URLSearchParams({ fields })
+          result = await api('GET', `/${args['adset-id']}/ads?${params}`)
+          break
+        }
+        case 'insights': {
+          if (!args.id) { result = { error: '--id required' }; break }
+          const datePreset = args['date-preset'] || 'last_30d'
+          const fields = encodeURIComponent(args.fields || DEFAULT_INSIGHT_FIELDS)
+          result = await api('GET', `/${args.id}/insights?fields=${fields}&date_preset=${datePreset}`)
           break
         }
         default:
-          result = { error: 'Unknown ads subcommand. Use: list' }
+          result = { error: 'Unknown ads subcommand. Use: list, insights' }
+      }
+      break
+
+    case 'creatives':
+      switch (sub) {
+        case 'list': {
+          const accountId = getAccountId()
+          if (!accountId) { result = { error: '--account-id required (or set META_AD_ACCOUNT_ID)' }; break }
+          const fields = args.fields || 'id,name,status,object_story_spec,thumbnail_url,image_url,body,title,asset_feed_spec'
+          const params = new URLSearchParams({ fields })
+          result = await api('GET', `/act_${accountId}/adcreatives?${params}`)
+          break
+        }
+        default:
+          result = { error: 'Unknown creatives subcommand. Use: list' }
       }
       break
 
@@ -146,6 +186,8 @@ async function main() {
           const accountId = getAccountId()
           if (!accountId) { result = { error: '--account-id required (or set META_AD_ACCOUNT_ID)' }; break }
           if (!args['source-id'] || !args.country) { result = { error: '--source-id and --country required' }; break }
+          const blocked = denyWrite('Creating audiences')
+          if (blocked) { result = blocked; break }
           result = await api('POST', `/act_${accountId}/customaudiences`, {
             name: args.name || 'Lookalike Audience',
             subtype: 'LOOKALIKE',
@@ -164,9 +206,10 @@ async function main() {
         error: 'Unknown command',
         usage: {
           accounts: 'accounts [list]',
-          campaigns: 'campaigns [list|insights|create|update] [--account-id <id>] [--id <id>] [--date-preset last_30d] [--name <name>] [--objective <obj>] [--status <status>]',
+          campaigns: 'campaigns [list|insights|create|update] [--account-id <id>] [--id <id>] [--fields impressions,...] [--date-preset last_30d] [--name <name>] [--objective <obj>] [--status <status>]',
           adsets: 'adsets [list] [--account-id <id>]',
-          ads: 'ads [list] --adset-id <id>',
+          ads: 'ads [list|insights] [--adset-id <id>] [--id <id>] [--fields ...] [--date-preset last_30d]',
+          creatives: 'creatives [list] [--account-id <id>] [--fields ...]',
           audiences: 'audiences [list|create-lookalike] [--account-id <id>] [--source-id <id>] [--country US]',
         },
       }

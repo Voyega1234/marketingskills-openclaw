@@ -116,6 +116,10 @@ node tools/clis/mailchimp.js campaigns list
 
 All tools support `--dry-run` to preview requests without sending.
 
+#### Security defaults
+
+When running inside OpenClaw, sensitive ad platforms such as Google Ads, Meta Ads, LinkedIn Ads, and TikTok Ads run in read-only mode. Leave the `OPENCLAW_ADS_READ_ONLY` environment variable unset (default) to block mutations, and only opt in to writes with `--allow-write` or by setting `OPENCLAW_ADS_READ_ONLY=false` if you have audited the agent’s access.
+
 ## License
 
 [MIT](LICENSE)

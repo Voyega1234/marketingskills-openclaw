@@ -2,6 +2,7 @@
 
 const TOKEN = process.env.LINKEDIN_ACCESS_TOKEN
 const BASE_URL = 'https://api.linkedin.com/v2'
+const READ_ONLY = process.env.OPENCLAW_ADS_READ_ONLY !== 'false'
 
 if (!TOKEN) {
   console.error(JSON.stringify({ error: 'LINKEDIN_ACCESS_TOKEN environment variable required' }))
@@ -53,6 +54,15 @@ function parseArgs(args) {
 const args = parseArgs(process.argv.slice(2))
 const [cmd, sub, ...rest] = args._
 
+function denyWrite(operation) {
+  if (READ_ONLY && !args['allow-write']) {
+    return {
+      error: `${operation} blocked: OpenClaw secure mode enforces read-only LinkedIn Ads access. Pass --allow-write or set OPENCLAW_ADS_READ_ONLY=false only if you understand the risks.`,
+    }
+  }
+  return null
+}
+
 async function main() {
   let result
 
@@ -77,6 +87,8 @@ async function main() {
         case 'create': {
           if (!args['account-id'] || !args.name) { result = { error: '--account-id and --name required' }; break }
           if (!args['campaign-group-id']) { result = { error: '--campaign-group-id required' }; break }
+          const blocked = denyWrite('Creating campaigns')
+          if (blocked) { result = blocked; break }
           const body = {
             account: `urn:li:sponsoredAccount:${args['account-id']}`,
             campaignGroup: `urn:li:sponsoredCampaignGroup:${args['campaign-group-id']}`,
@@ -98,6 +110,8 @@ async function main() {
         }
         case 'update': {
           if (!args.id || !args.status) { result = { error: '--id and --status required' }; break }
+          const blocked = denyWrite('Updating campaigns')
+          if (blocked) { result = blocked; break }
           result = await api('POST', `/adCampaignsV2/${args.id}`, {
             patch: {
               $set: {
@@ -156,6 +170,8 @@ async function main() {
             result = { error: 'Invalid JSON for --targeting' }
             break
           }
+          const blocked = denyWrite('Counting audiences (requires write scopes)')
+          if (blocked) { result = blocked; break }
           result = await api('POST', '/audienceCountsV2', { audienceCriteria: targeting })
           break
         }

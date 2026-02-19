@@ -4,6 +4,7 @@ const TOKEN = process.env.GOOGLE_ADS_TOKEN
 const DEV_TOKEN = process.env.GOOGLE_ADS_DEVELOPER_TOKEN
 const CUSTOMER_ID = process.env.GOOGLE_ADS_CUSTOMER_ID
 const BASE_URL = 'https://googleads.googleapis.com/v14'
+const READ_ONLY = process.env.OPENCLAW_ADS_READ_ONLY !== 'false'
 
 if (!TOKEN || !DEV_TOKEN || !CUSTOMER_ID) {
   console.error(JSON.stringify({ error: 'GOOGLE_ADS_TOKEN, GOOGLE_ADS_DEVELOPER_TOKEN, and GOOGLE_ADS_CUSTOMER_ID environment variables required' }))
@@ -58,6 +59,15 @@ function parseArgs(args) {
 const args = parseArgs(process.argv.slice(2))
 const [cmd, sub, ...rest] = args._
 
+function denyWrite(operation) {
+  if (READ_ONLY && !args['allow-write']) {
+    return {
+      error: `${operation} blocked: OpenClaw secure mode enforces read-only Google Ads access. Pass --allow-write or set OPENCLAW_ADS_READ_ONLY=false only if you understand the risks.`,
+    }
+  }
+  return null
+}
+
 function daysToDateRange(days) {
   const d = parseInt(days) || 30
   if (d === 7) return 'LAST_7_DAYS'
@@ -91,6 +101,8 @@ async function main() {
         }
         case 'pause': {
           if (!args.id) { result = { error: '--id required' }; break }
+          const blocked = denyWrite('Pausing campaigns')
+          if (blocked) { result = blocked; break }
           result = await api('POST', `/customers/${CUSTOMER_ID}/campaigns:mutate`, {
             operations: [{
               update: {
@@ -104,6 +116,8 @@ async function main() {
         }
         case 'enable': {
           if (!args.id) { result = { error: '--id required' }; break }
+          const blocked = denyWrite('Enabling campaigns')
+          if (blocked) { result = blocked; break }
           result = await api('POST', `/customers/${CUSTOMER_ID}/campaigns:mutate`, {
             operations: [{
               update: {
@@ -150,6 +164,8 @@ async function main() {
       switch (sub) {
         case 'update': {
           if (!args.id || !args.amount) { result = { error: '--id and --amount required' }; break }
+          const blocked = denyWrite('Updating budgets')
+          if (blocked) { result = blocked; break }
           const amountMicros = String(Math.round(parseFloat(args.amount) * 1000000))
           result = await api('POST', `/customers/${CUSTOMER_ID}/campaignBudgets:mutate`, {
             operations: [{

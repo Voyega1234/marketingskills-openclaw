@@ -3,6 +3,7 @@
 const TOKEN = process.env.TIKTOK_ACCESS_TOKEN
 const ADVERTISER_ID = process.env.TIKTOK_ADVERTISER_ID
 const BASE_URL = 'https://business-api.tiktok.com/open_api/v1.3'
+const READ_ONLY = process.env.OPENCLAW_ADS_READ_ONLY !== 'false'
 
 if (!TOKEN) {
   console.error(JSON.stringify({ error: 'TIKTOK_ACCESS_TOKEN environment variable required' }))
@@ -59,6 +60,15 @@ function getAdvertiserId() {
   return args['advertiser-id'] || ADVERTISER_ID
 }
 
+function denyWrite(operation) {
+  if (READ_ONLY && !args['allow-write']) {
+    return {
+      error: `${operation} blocked: OpenClaw secure mode enforces read-only TikTok Ads access. Pass --allow-write or set OPENCLAW_ADS_READ_ONLY=false only if you understand the risks.`,
+    }
+  }
+  return null
+}
+
 async function main() {
   let result
 
@@ -90,6 +100,8 @@ async function main() {
           const advId = getAdvertiserId()
           if (!advId) { result = { error: 'TIKTOK_ADVERTISER_ID env or --advertiser-id required' }; break }
           if (!args.name || !args.objective) { result = { error: '--name and --objective required' }; break }
+          const blocked = denyWrite('Creating campaigns')
+          if (blocked) { result = blocked; break }
           const body = {
             advertiser_id: advId,
             campaign_name: args.name,
@@ -104,6 +116,8 @@ async function main() {
           const advId = getAdvertiserId()
           if (!advId) { result = { error: 'TIKTOK_ADVERTISER_ID env or --advertiser-id required' }; break }
           if (!args.ids || !args.status) { result = { error: '--ids and --status required' }; break }
+          const blocked = denyWrite('Updating campaign status')
+          if (blocked) { result = blocked; break }
           result = await api('POST', '/campaign/status/update/', {
             advertiser_id: advId,
             campaign_ids: args.ids.split(','),

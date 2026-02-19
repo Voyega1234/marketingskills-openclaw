@@ -303,6 +303,28 @@ For implementation, see the [tools registry](../../tools/REGISTRY.md). Key adver
 | **LinkedIn Ads** | B2B, job title targeting | - | [linkedin-ads.md](../../tools/integrations/linkedin-ads.md) |
 | **TikTok Ads** | Younger demographics, video | - | [tiktok-ads.md](../../tools/integrations/tiktok-ads.md) |
 
+### OpenClaw data pulls (read-only defaults)
+
+Use the bundled CLIs to fetch performance and creative data safely. OpenClaw keeps ad integrations read-only unless you pass `--allow-write` or set `OPENCLAW_ADS_READ_ONLY=false`.
+
+- **Google Ads (account + performance)**  
+  `node tools/clis/google-ads.js campaigns list`  
+  `node tools/clis/google-ads.js campaigns performance --days 30`  
+  `node tools/clis/google-ads.js keywords performance --days 14 --limit 100`
+
+- **Meta Ads (campaign/adset/ad + creatives)**  
+  `node tools/clis/meta-ads.js campaigns insights --id <campaign_id> --date-preset last_30d --fields "impressions,reach,spend,actions,action_values,ctr"`  
+  `node tools/clis/meta-ads.js ads list --adset-id <adset_id>` *(returns creative object_story_spec + image_url/thumbnail_url)*  
+  `node tools/clis/meta-ads.js creatives list --account-id <act_id>` *(full creative library for audits)*
+
+- **LinkedIn Ads**  
+  `node tools/clis/linkedin-ads.js campaigns analytics --id <campaign_id> --start-year 2026 --start-month 01 --start-day 01 --end-year 2026 --end-month 02 --end-day 19`
+
+- **TikTok Ads**  
+  `node tools/clis/tiktok-ads.js reports get --start-date 2026-01-20 --end-date 2026-02-19 --metrics spend,impressions,clicks,conversion`
+
+Always pipe JSON output to `jq` or a spreadsheet to summarize KPIs before providing recommendations.
+
 For tracking, see also: [ga4.md](../../tools/integrations/ga4.md), [segment.md](../../tools/integrations/segment.md)
 
 ---

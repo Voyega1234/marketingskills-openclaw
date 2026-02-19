@@ -96,6 +96,7 @@ Every CLI reads credentials from environment variables:
 - The `.env` file is gitignored — but double-check before committing
 - Use `--dry-run` on any command to preview the request without sending it (credentials are masked as `***`)
 - If you fork this repo, audit your commits to ensure no secrets are included
+- OpenClaw secure mode: Ads CLIs (`google-ads`, `meta-ads`, `linkedin-ads`, `tiktok-ads`) default to read-only. Leave `OPENCLAW_ADS_READ_ONLY` unset (or `true`) to block mutations; override per command with `--allow-write` or disable globally via `OPENCLAW_ADS_READ_ONLY=false` only after reviewing security implications.
 
 ## Command Pattern
 
